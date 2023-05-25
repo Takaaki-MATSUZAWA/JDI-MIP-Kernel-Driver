@@ -59,6 +59,7 @@ struct sharp {
 
 struct sharp   *screen;
 struct fb_info *info;
+struct vfb_data *vdata;
 
 static void *videomemory;
 static u_long videomemorysize = VIDEOMEMSIZE;
@@ -112,6 +113,11 @@ static struct fb_ops vfb_ops = {
     //.fb_image = sys_image,
     .fb_mmap    = vfb_mmap,
     .fb_setcolreg   = vfb_setcolreg,
+};
+
+struct vfb_data {
+    u32 palette[8]; // Array to store color palette entries
+    // Add other driver-specific data members as needed
 };
 
 static struct task_struct *thread1;
