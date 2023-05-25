@@ -253,23 +253,19 @@ int fpsThreadFunction(void* v)
 
 int thread_fn(void* v) 
 {
-    //int i;
+    //BELOW, 50 becomes 150 becaues we have 3 bits (rgb) per pixel
     int x,y,i;
     char pixel;
     char hasChanged = 0;
 
     unsigned char *screenBufferCompressed;
     char bufferByte = 0;
-    char sendBuffer[1 + (1+50+1)*1 + 1];
+    char sendBuffer[1 + (1+150+1)*1 + 1];
 
     clearDisplay();
 
-    //BELOW, 50 becomes 150 becaues we have 3 bits (rgb) per pixel
-    //unsigned char *screenBufferCompressed;
     screenBufferCompressed = vzalloc((150+4)*240*sizeof(unsigned char)); 	//plante si on met moins
 
-    //char bufferByte = 0;
-    //char sendBuffer[1 + (1+50+1)*1 + 1];
     sendBuffer[0] = commandByte;
     sendBuffer[152] = paddingByte;
     sendBuffer[1 + 152] = paddingByte;
@@ -284,7 +280,6 @@ int thread_fn(void* v)
 	screenBufferCompressed[y*(150+4) + 153] = paddingByte;
 
 	//screenBufferCompressed is all to 0 by default (vzalloc)
-
     spi_write(screen->spi, (const u8 *)(screenBufferCompressed+(y*(150+4))), 154);
 	gpio_set_value(SCS, 0);
     }
