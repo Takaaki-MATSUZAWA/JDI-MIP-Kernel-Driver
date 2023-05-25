@@ -64,6 +64,7 @@ static void *videomemory;
 static u_long videomemorysize = VIDEOMEMSIZE;
 
 void vfb_fillrect(struct fb_info *p, const struct fb_fillrect *region);
+static int vfb_setcolreg(unsigned int regno, unsigned int red, unsigned int green, unsigned int blue, unsigned int transp, struct fb_info *info);
 static int vfb_mmap(struct fb_info *info, struct vm_area_struct *vma);
 void sendLine(char *buffer, char lineNumber);
 
@@ -97,7 +98,7 @@ static struct fb_fix_screeninfo vfb_fix = {
     .xpanstep = 0,
     .ypanstep = 0,
     .ywrapstep =    0,
-    .visual =	FB_VISUAL_PSUEDOCOLOR,
+    .visual =	FB_VISUAL_PSEUDOCOLOR,
     // TODO: see if we can use hw acceleration at all for pi zero.
     .accel =    FB_ACCEL_NONE,
 };
