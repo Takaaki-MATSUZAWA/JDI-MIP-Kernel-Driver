@@ -223,12 +223,12 @@ void clearDisplay(void) {
     gpio_set_value(SCS, 0);
 }
 
-char reverseByte(char b) {
-  b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
-  b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
-  b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
-  return b;
-}
+// char reverseByte(char b) {
+//   b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+//   b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+//   b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+//   return b;
+// }
 
 int vcomToggleFunction(void* v) 
 {
@@ -276,7 +276,7 @@ int thread_fn(void* v)
     {
 	gpio_set_value(SCS, 1);
     screenBufferCompressed[y*(150+4)] = commandByte;
-	screenBufferCompressed[y*(150+4) + 1] = reverseByte(y+1); //sharp display lines are indexed from 1
+	screenBufferCompressed[y*(150+4) + 1] = y; //reverseByte(y+1); //sharp display lines are indexed from 1
 	screenBufferCompressed[y*(150+4) + 152] = paddingByte;
 	screenBufferCompressed[y*(150+4) + 153] = paddingByte;
 
