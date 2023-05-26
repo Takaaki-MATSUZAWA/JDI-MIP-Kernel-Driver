@@ -45,7 +45,7 @@ module_param(seuil, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP );
 
 char vcomState;
 
-unsigned char lineBuffer[LCDWIDTH/8];
+unsigned char lineBuffer[3*LCDWIDTH/8];
 
 struct sharp {
     struct spi_device	*spi;
