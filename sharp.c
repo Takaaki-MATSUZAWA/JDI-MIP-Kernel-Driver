@@ -59,13 +59,13 @@ struct sharp {
 
 struct sharp   *screen;
 struct fb_info *info;
-struct vfb_data *vdata;
+// struct vfb_data *vdata;
 
 static void *videomemory;
 static u_long videomemorysize = VIDEOMEMSIZE;
 
 void vfb_fillrect(struct fb_info *p, const struct fb_fillrect *region);
-static int vfb_setcolreg(unsigned int regno, unsigned int red, unsigned int green, unsigned int blue, unsigned int transp, struct fb_info *info);
+// static int vfb_setcolreg(unsigned int regno, unsigned int red, unsigned int green, unsigned int blue, unsigned int transp, struct fb_info *info);
 static int vfb_mmap(struct fb_info *info, struct vm_area_struct *vma);
 void sendLine(char *buffer, char lineNumber);
 
@@ -79,6 +79,7 @@ static struct fb_var_screeninfo vfb_default = {
     .red =      { 1, 0, 0 },
     .green =    { 0, 1, 0 },
     .blue =     { 0, 0, 1 },
+    .transp =   { 0, 0, 0 },
     .activate = FB_ACTIVATE_NOW,
     .height =   400,
     .width =    240,
@@ -110,32 +111,32 @@ static struct fb_ops vfb_ops = {
     .fb_fillrect    = sys_fillrect,
     .fb_copyarea    = sys_copyarea,
     .fb_imageblit   = sys_imageblit,
-    //.fb_image = sys_image,
+    // .fb_image = sys_image,
     .fb_mmap    = vfb_mmap,
-    .fb_setcolreg   = vfb_setcolreg,
+    // .fb_setcolreg   = vfb_setcolreg,
 };
 
-struct vfb_data {
-    u32 palette[8]; // Array to store color palette entries
-    // Add other driver-specific data members as needed
-};
+// struct vfb_data {
+//     u32 palette[8]; // Array to store color palette entries
+//     // Add other driver-specific data members as needed
+// };
 
 static struct task_struct *thread1;
 static struct task_struct *fpsThread;
 static struct task_struct *vcomToggleThread;
 
-static int vfb_setcolreg(unsigned int regno, unsigned int red, unsigned int green, unsigned int blue, unsigned int transp, struct fb_info *info)
-{
-    struct vfb_data *vdata = info->par; // Assuming you have a structure called vfb_data to hold your driver-specific data
+// static int vfb_setcolreg(unsigned int regno, unsigned int red, unsigned int green, unsigned int blue, unsigned int transp, struct fb_info *info)
+// {
+//     struct vfb_data *vdata = info->par; // Assuming you have a structure called vfb_data to hold your driver-specific data
     
-    if (regno >= 8)
-        return -EINVAL; // Invalid color palette index
+//     if (regno >= 8)
+//         return -EINVAL; // Invalid color palette index
     
-    // Assuming your display uses 3 bits per color component (bits_per_pixel = 3)
-    vdata->palette[regno] = ((red & 0x7) << 5) | ((green & 0x7) << 2) | (blue & 0x3);
+//     // Assuming your display uses 3 bits per color component (bits_per_pixel = 3)
+//     vdata->palette[regno] = ((red & 0x7) << 5) | ((green & 0x7) << 2) | (blue & 0x3);
 
-    return 0;
-}
+//     return 0;
+// }
 
 static int vfb_mmap(struct fb_info *info,
             struct vm_area_struct *vma)
