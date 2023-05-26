@@ -22,6 +22,11 @@
 #define LCDWIDTH 400
 #define VIDEOMEMSIZE    (1*1024*1024)   /* 1 MB */
 
+/*  Modifying to work with JDI LPM027M128C 8 color display 
+    It is pin compatible with the sharp display. 
+    Referencing JDI_MIP_Display.cpp for hints on
+    what needs to be changed.*/
+
 char commandByte = 0b10000000;
 char vcomByte    = 0b01000000;
 char clearByte   = 0b00100000;
@@ -54,11 +59,13 @@ struct sharp {
 
 struct sharp   *screen;
 struct fb_info *info;
+struct vfb_data *vdata;
 
 static void *videomemory;
 static u_long videomemorysize = VIDEOMEMSIZE;
 
 void vfb_fillrect(struct fb_info *p, const struct fb_fillrect *region);
+static int vfb_setcolreg(unsigned int regno, unsigned int red, unsigned int green, unsigned int blue, unsigned int transp, struct fb_info *info);
 static int vfb_mmap(struct fb_info *info, struct vm_area_struct *vma);
 void sendLine(char *buffer, char lineNumber);
 
@@ -67,11 +74,11 @@ static struct fb_var_screeninfo vfb_default = {
     .yres =     240,
     .xres_virtual = 400,
     .yres_virtual = 240,
-    .bits_per_pixel = 24,
-    .grayscale = 1,
-    .red =      { 0, 8, 0 },
-    .green =    { 0, 8, 0 },
-    .blue =     { 0, 8, 0 },
+    .bits_per_pixel = 3,
+    .grayscale = 0,
+    .red =      { 1, 0, 0 },
+    .green =    { 0, 1, 0 },
+    .blue =     { 0, 0, 1 },
     .activate = FB_ACTIVATE_NOW,
     .height =   400,
     .width =    240,
@@ -92,7 +99,8 @@ static struct fb_fix_screeninfo vfb_fix = {
     .xpanstep = 0,
     .ypanstep = 0,
     .ywrapstep =    0,
-    .visual =	FB_VISUAL_MONO10,
+    .visual =	FB_VISUAL_PSEUDOCOLOR,
+    // TODO: see if we can use hw acceleration at all for pi zero.
     .accel =    FB_ACCEL_NONE,
 };
 
@@ -102,12 +110,32 @@ static struct fb_ops vfb_ops = {
     .fb_fillrect    = sys_fillrect,
     .fb_copyarea    = sys_copyarea,
     .fb_imageblit   = sys_imageblit,
+    //.fb_image = sys_image,
     .fb_mmap    = vfb_mmap,
+    .fb_setcolreg   = vfb_setcolreg,
+};
+
+struct vfb_data {
+    u32 palette[8]; // Array to store color palette entries
+    // Add other driver-specific data members as needed
 };
 
 static struct task_struct *thread1;
 static struct task_struct *fpsThread;
 static struct task_struct *vcomToggleThread;
+
+static int vfb_setcolreg(unsigned int regno, unsigned int red, unsigned int green, unsigned int blue, unsigned int transp, struct fb_info *info)
+{
+    struct vfb_data *vdata = info->par; // Assuming you have a structure called vfb_data to hold your driver-specific data
+    
+    if (regno >= 8)
+        return -EINVAL; // Invalid color palette index
+    
+    // Assuming your display uses 3 bits per color component (bits_per_pixel = 3)
+    vdata->palette[regno] = ((red & 0x7) << 5) | ((green & 0x7) << 2) | (blue & 0x3);
+
+    return 0;
+}
 
 static int vfb_mmap(struct fb_info *info,
             struct vm_area_struct *vma)
@@ -225,38 +253,34 @@ int fpsThreadFunction(void* v)
 
 int thread_fn(void* v) 
 {
-    //int i;
+    //BELOW, 50 becomes 150 becaues we have 3 bits (rgb) per pixel
     int x,y,i;
     char pixel;
     char hasChanged = 0;
 
     unsigned char *screenBufferCompressed;
     char bufferByte = 0;
-    char sendBuffer[1 + (1+50+1)*1 + 1];
+    char sendBuffer[1 + (1+150+1)*1 + 1];
 
     clearDisplay();
 
-    //unsigned char *screenBufferCompressed;
-    screenBufferCompressed = vzalloc((50+4)*240*sizeof(unsigned char)); 	//plante si on met moins
+    screenBufferCompressed = vzalloc((150+4)*240*sizeof(unsigned char)); 	//plante si on met moins
 
-    //char bufferByte = 0;
-    //char sendBuffer[1 + (1+50+1)*1 + 1];
     sendBuffer[0] = commandByte;
-    sendBuffer[52] = paddingByte;
-    sendBuffer[1 + 52] = paddingByte;
+    sendBuffer[152] = paddingByte;
+    sendBuffer[1 + 152] = paddingByte;
 
     // Init screen to black
     for(y=0 ; y < 240 ; y++)
     {
 	gpio_set_value(SCS, 1);
-	screenBufferCompressed[y*(50+4)] = commandByte;
-	screenBufferCompressed[y*(50+4) + 1] = reverseByte(y+1); //sharp display lines are indexed from 1
-	screenBufferCompressed[y*(50+4) + 52] = paddingByte;
-	screenBufferCompressed[y*(50+4) + 53] = paddingByte;
+    screenBufferCompressed[y*(150+4)] = commandByte;
+	screenBufferCompressed[y*(150+4) + 1] = reverseByte(y+1); //sharp display lines are indexed from 1
+	screenBufferCompressed[y*(150+4) + 152] = paddingByte;
+	screenBufferCompressed[y*(150+4) + 153] = paddingByte;
 
 	//screenBufferCompressed is all to 0 by default (vzalloc)
-
-	spi_write(screen->spi, (const u8 *)(screenBufferCompressed+(y*(50+4))), 54);
+    spi_write(screen->spi, (const u8 *)(screenBufferCompressed+(y*(150+4))), 154);
 	gpio_set_value(SCS, 0);
     }
 
@@ -269,7 +293,7 @@ int thread_fn(void* v)
         {
             hasChanged = 0;
 
-            for(x=0 ; x<50 ; x++)
+            for(x=0 ; x<150 ; x++)
             {
                 for(i=0 ; i<8 ; i++ )
                 {
@@ -286,19 +310,19 @@ int thread_fn(void* v)
                         bufferByte &=  ~(1 << (7 - i)); 
                     }
                 }
-                if(!hasChanged && (screenBufferCompressed[x + 2 + y*(50+4)] != bufferByte))
+                if(!hasChanged && (screenBufferCompressed[x + 2 + y*(150+4)] != bufferByte))
                 {
                     hasChanged = 1;
                 }
-                screenBufferCompressed[x+2 + y*(50+4)] = bufferByte;
+                screenBufferCompressed[x+2 + y*(150+4)] = bufferByte;
             }
 
             if(hasChanged)
             {
                 gpio_set_value(SCS, 1);
                 //la memoire allouee avec vzalloc semble trop lente...
-                memcpy(sendBuffer, screenBufferCompressed+y*(50+4), 54);
-                spi_write(screen->spi, (const u8 *)(sendBuffer), 54);
+                memcpy(sendBuffer, screenBufferCompressed+y*(150+4), 154);
+                spi_write(screen->spi, (const u8 *)(sendBuffer), 154);
                 gpio_set_value(SCS, 0);
             }
 
