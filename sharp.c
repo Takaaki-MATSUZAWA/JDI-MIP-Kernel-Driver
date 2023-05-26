@@ -28,13 +28,16 @@
     what needs to be changed.*/
 
 char commandByte = 0b10000000;
-char vcomByte    = 0b01000000;
+// char vcomByte    = 0b01000000;
 char clearByte   = 0b00100000;
 char paddingByte = 0b00000000;
 
-char DISP       = 22;
-char SCS        = 8;
-char VCOM       = 23;
+// char DISP       = 22;
+// char SCS        = 8;
+// char VCOM       = 23;
+char DISP       = 24
+char SCS        = 23;
+char VCOM       = 25;
 
 int lcdWidth = LCDWIDTH;
 int lcdHeight = 240;
@@ -45,7 +48,7 @@ module_param(seuil, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP );
 
 char vcomState;
 
-unsigned char lineBuffer[3*LCDWIDTH/8];
+// unsigned char lineBuffer[3*LCDWIDTH/8];
 
 struct sharp {
     struct spi_device	*spi;
@@ -180,7 +183,7 @@ void vfb_fillrect(struct fb_info *p, const struct fb_fillrect *region)
 static void *rvmalloc(unsigned long size)
 {
     void *mem;
-    unsigned long adr;
+    unsigned long adr;  /* Address of the allocated memory */
 
     size = PAGE_ALIGN(size);
     mem = vmalloc_32(size);
