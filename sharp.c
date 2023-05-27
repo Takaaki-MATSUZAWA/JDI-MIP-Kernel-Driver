@@ -27,7 +27,8 @@
     Referencing JDI_MIP_Display.cpp for hints on
     what needs to be changed.*/
 
-char commandByte = 0b10000000;
+//char commandByte = 0b10000000; // single line 3 bit mode
+char commandByte = 0b10010000; // single line 4 bit mode
 // char vcomByte    = 0b01000000;
 char clearByte   = 0b00100000;
 char paddingByte = 0b00000000;
@@ -52,12 +53,11 @@ char vcomState;
 
 struct sharp {
     struct spi_device	*spi;
-	int			id;
-    char			name[sizeof("sharp-3")];
-
+	int			        id;
+    char			    name[sizeof("sharp-3")];
     struct mutex		mutex;
 	struct work_struct	work;
-	spinlock_t		lock;
+	spinlock_t		    lock; 
 };
 
 struct sharp   *screen;
@@ -81,7 +81,7 @@ static struct fb_var_screeninfo vfb_default = {
     .grayscale = 0,
     .red =      { 0, 3, 0 },
     .green =    { 3, 3, 0 },
-    .blue =     { 6, 2, 0 },
+    .blue =     { 6, 2, 0 }, 
     .activate = FB_ACTIVATE_NOW,
     .height =   400,
     .width =    240,
@@ -224,6 +224,54 @@ void clearDisplay(void) {
     gpio_set_value(SCS, 0);
 }
 
+void colorCorners(unsigned char *screenBuffer) {
+    for (int y = 0; y < 240; y++) {
+        for (int x = 0; x < 200; x++) {
+            if (x < 10 && y < 20) {
+                screenBuffer[y * 204 + x + 2] = 238; // white 11101110 => 238
+            } else if (x > 190 && y < 20) {
+                screenBuffer[y * 204 + x + 2] = 136; // red   10001000 => 136
+            } else if (x < 10 && y > 220) {
+                screenBuffer[y * 204 + x + 2] = 68;  // green 01000100 =>  68
+            } else if (x > 190 && y > 220) {
+                screenBuffer[y * 204 + x + 2] = 34;  // blue  00100010 =>  34
+            }
+        }
+        if (y < 20 || y > 220) {
+            gpio_set_value(SCS, 1);
+            spi_write(screen->spi, (const u8 *)(screenBuffer+(y*204)), 204);
+            gpio_set_value(SCS, 0);
+        }
+    }
+}
+
+void colorBar(unsigned char *screenBuffer) {
+    for(int y = 0; y < 40; y++) {
+        for(int x = 0; x < 160; x++) {
+            if (x < 20) {
+                screenBuffer[y * 204 + x + 2] = 0b00000000; //black
+            } else if (x < 40) {
+                screenBuffer[y * 204 + x + 2] = 0b10001000; // red
+            } else if (x < 60) {
+                screenBuffer[y * 204 + x + 2] = 0b01000100; // green 
+            } else if (x < 80) {
+                screenBuffer[y * 204 + x + 2] = 0b00100010; // blue
+            } else if (x < 100) {
+                screenBuffer[y * 204 + x + 2] = 0b11001100; // red + green => yellow
+            } else if (x < 120) {
+                screenBuffer[y * 204 + x + 2] = 0b01100110; // green + blue => cyan
+            } else if (x < 140) {
+                screenBuffer[y * 204 + x + 2] = 0b10101010; // red + blue => magenta
+            } else if (x < 160) {
+                screenBuffer[y * 204 + x + 2] = 0b11101110; // red + green + blue => white
+            } 
+        }
+        gpio_set_value(SCS, 1);
+        spi_write(screen->spi, (const u8 *)(screenBuffer+(y*204)), 204);
+        gpio_set_value(SCS, 0);
+    }
+}
+
 // char reverseByte(char b) {
 //   b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
 //   b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
@@ -257,30 +305,28 @@ int thread_fn(void* v)
 {
     //BELOW, 50 becomes 150 becaues we have 3 bits (rgb) per pixel
     int x,y;
-    char r, g, b;
-    char p;
-    char c[3]; // reduced to 8 x 3 bit pixels as 3 bytes
-    // int shift;
-    // uint24_t c;
+    char p0, p1, p01;
     char hasChanged = 0;
 
     unsigned char *screenBuffer;
 
     clearDisplay();
 
-    screenBuffer = vzalloc((150+4)*240*sizeof(unsigned char)); 	//plante si on met moins
+    // Below, 204 because we use this structure per line:
+    // 1 command byte + 1 addr byte + 200 pixel bytes + 2 padding bytes
+    screenBuffer = vzalloc(240*204*sizeof(unsigned char)); 	
 
     // Init screen to black
     for(y=0 ; y < 240 ; y++)
     {
 	gpio_set_value(SCS, 1);
-    screenBuffer[y*(150+4)] = commandByte;
-	screenBuffer[y*(150+4) + 1] = y; //reverseByte(y+1); //sharp display lines are indexed from 1
-	screenBuffer[y*(150+4) + 152] = paddingByte;
-	screenBuffer[y*(150+4) + 153] = paddingByte;
+    screenBuffer[y*204] = commandByte;
+	screenBuffer[y*204 + 1] = y; //reverseByte(y+1); //sharp display lines are indexed from 1
+	screenBuffer[y*204 + 202] = paddingByte;
+	screenBuffer[y*204 + 203] = paddingByte;
 
 	//screenBuffer is all to 0 by default (vzalloc)
-    spi_write(screen->spi, (const u8 *)(screenBuffer+(y*(150+4))), 154);
+    spi_write(screen->spi, (const u8 *)(screenBuffer+(y*204)), 204);
 	gpio_set_value(SCS, 0);
     }
 
@@ -292,67 +338,52 @@ int thread_fn(void* v)
         for(y=0 ; y < 240 ; y++)
         {
             hasChanged = 0;
+        
+            // Using 4-bit pixel mode, we can directly copy each line from the framebuffer to the screenBuffer
+            // Pixels are 4-bits, so two pixels per byte.  
 
-            for(x=0 ; x<50 ; x++)
+            for(x=0 ; x<200 ; x++)
             {
-                // We work on 8 pixels at a time... 50 * 8 => 400 pixels
+                // We work on 2 pixels at a time... 200 * 2 => 400 pixels
+                // Each 2 pixels compress indo 1 byte c[] and are copied to the screenBuffer.
 
-                // Each 8 pixels compress indo 3 byte c[] and are copied to the screenBuffer.
+                p0 = ioread8((void*)((uintptr_t)info->fix.smem_start + (y*400 + 2*x)));
+                p1 = ioread8((void*)((uintptr_t)info->fix.smem_start + (y*400 + 2*x + 1))); 
 
-                memset(c, 0, sizeof(c));
+                // bit shiff p1 by 4 bits and or with p0, so that p0 is the most significant 4 bits
+                //p0 = (p0 << 4) + p1; // this worked pretty well with 1 bit colors in 8 bit pixels
 
-                // Iterate over 8 pixels
-                for (int i = 0; i < 8; i++) {
-                    p = ioread8((void*)((uintptr_t)info->fix.smem_start + (x*8 + i + y*400)));
+                //   red                             green                          blue
+                // p0 = (p0 & 0b11100000) > 0 ? 128:0 + (p0 & 0b00011100) > 0 ? 64:0 + (p0 & 0b00000011) > 0 ? 32:0;
+                // p1 = (p1 & 0b11100000) > 0 ? 8:0   + (p1 & 0b00011100) > 0 ? 4:0  + (p1 & 0b00000011) > 0 ? 2:0;
 
-                    // Extract the red, green, and blue values for the current pixel
-                    r = (p & 0b00000111) > 0 ? 1 : 0;  // Bit 0-2 for red
-                    g = (p & 0b00111000) > 0 ? 1 : 0;  // Bit 3-5 for green
-                    b = (p & 0b11000000) > 0 ? 1 : 0;  // Bit 6-7 for blue
+                p0 = p0 << 5;
+                p1 = p1 << 1;
 
-                    // // Pack the extracted bits into c
-                    // c[i % 3] |= (r << (i % 3));  // Pack red bits
-                    // c[i % 3] |= (g << (i % 3 + 1));  // Pack green bits
-                    // c[i % 3] |= (b << (i % 3 + 2));  // Pack blue bits
-                    c[i % 3] |= (r << (i/3));  // Pack red bits
-                    c[(i*8+1) % 24] |= (g << (i/3 + 1));  // Pack green bits
-                    c[(i*8+2) % 24] |= (b << (i/3 + 2));  // Pack blue bits
+                p01 = p0 + p1; 
 
-                    // // Above steps are broken.  Trying again.
-                    // r = (p & 0b00000111) > 0 ? 1 : 0;  // Bit 0-2 for red
-                    // g = (p & 0b00111000) > 0 ? 2 : 0;  // Bit 3-5 for green
-                    // b = (p & 0b11000000) > 0 ? 4 : 0;  // Bit 6-7 for blue
-
-                    // p = r + g + b;
-                    // // c[i % 3] |= p << ((i % 3) * 3);
-                    // c[(8*i)]
-                }
-
-                // compare to screen buffer
-                if(!hasChanged && (
-                        screenBuffer[2 + x*3 + y*(150+4)] != c[0] ||
-                        screenBuffer[2 + x*3 + 1 + y*(150+4)] != c[1] ||
-                        screenBuffer[2 + x*3 + 2 + y*(150+4)] != c[2]))
-                {
-                    hasChanged = 1;
-                }
-
-                // update screen buffer
+                // check if the pixel has changed
                 if (hasChanged)
                 {
-                    screenBuffer[2 + x*3 + y*(150+4)] = c[0];
-                    screenBuffer[2 + x*3 + 1 + y*(150+4)] = c[1];
-                    screenBuffer[2 + x*3 + 2 + y*(150+4)] = c[2];
+                    screenBuffer[y*204 + 2 + x] = p01;
+                } 
+                else if (screenBuffer[y*204 + 2 + x] != p01)
+                {
+                    hasChanged = 1;
+                    screenBuffer[y*204 + 2 + x] = p01;
                 }
+
             }
 
             if (hasChanged)
             {
                 gpio_set_value(SCS, 1);
-                spi_write(screen->spi, (const u8 *)(screenBuffer+(y*(150+4))), 154);
+                spi_write(screen->spi, (const u8 *)(screenBuffer+(y*204)), 204);
                 gpio_set_value(SCS, 0);
             }
         }
+        //colorCorners(screenBuffer);
+        //colorBar(screenBuffer);
     }
 
     return 0;
@@ -428,7 +459,6 @@ static int sharp_probe(struct spi_device *spi)
     retval = fb_alloc_cmap(&info->cmap, 16, 0);
     if (retval < 0)
         goto err1;
-
     retval = register_framebuffer(info);
     if (retval < 0)
         goto err2;
