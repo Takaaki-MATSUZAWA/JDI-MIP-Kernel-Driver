@@ -141,8 +141,7 @@ static struct task_struct *vcomToggleThread;
 //     return 0;
 // }
 
-static int vfb_mmap(struct fb_info *info,
-            struct vm_area_struct *vma)
+static int vfb_mmap(struct fb_info *info, struct vm_area_struct *vma)
 {
     unsigned long start = vma->vm_start;
     unsigned long size = vma->vm_end - vma->vm_start;
@@ -258,7 +257,7 @@ int fpsThreadFunction(void* v)
 int thread_fn(void* v) 
 {
     //BELOW, 50 becomes 150 becaues we have 3 bits (rgb) per pixel
-    int x,y,i;
+    int x,y;
     char r, g, b;
     char hasChanged = 0;
 
@@ -324,8 +323,8 @@ int thread_fn(void* v)
                 {
                     hasChanged = 1;
                 }
-                
-                if hasChanged
+
+                if (hasChanged)
                 {
                     screenBufferCompressed[(3*x)+2 + y*(150+4)] = rgbBuffer[0];
                     screenBufferCompressed[(3*x)+2 + y*(150+4) + 1] = rgbBuffer[1];
@@ -333,7 +332,7 @@ int thread_fn(void* v)
                 }
             }
 
-            if(hasChanged)
+            if (hasChanged)
             {
                 gpio_set_value(SCS, 1);
                 //la memoire allouee avec vzalloc semble trop lente...
