@@ -325,7 +325,7 @@ int thread_fn(void* v)
             {
                 gpio_set_value(SCS, 1);
                 //la memoire allouee avec vzalloc semble trop lente...
-                memcpy(sendBuffer, screenBuffer+y*(150+4), 154);
+                // memcpy(sendBuffer, screenBuffer+y*(150+4), 154);
                 // spi_write(screen->spi, (const u8 *)(sendBuffer), 154);
                 spi_write(screen->spi, (const u8 *)(screenBuffer+(y*(150+4))), 154);
                 gpio_set_value(SCS, 0);
