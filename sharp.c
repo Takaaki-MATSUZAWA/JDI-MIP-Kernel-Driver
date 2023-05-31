@@ -257,19 +257,20 @@ int thread_fn(void* v)
 {
     //BELOW, 50 becomes 150 becaues we have 3 bits (rgb) per pixel
     int x,y;
-    char r, g, b;
+    //char r, g, b;
+    char p;
     char hasChanged = 0;
 
-    unsigned char *screenBufferCompressed;
+    unsigned char *screenBuffer;
     //char bufferByte = 0;
     // three byte bufferBytes array:
-    char rgbBuffer[3] = {0,0,0};
+    // char rgbBuffer[3] = {0,0,0};
 
     char sendBuffer[1 + (1+150+1)*1 + 1];
 
     clearDisplay();
 
-    screenBufferCompressed = vzalloc((150+4)*240*sizeof(unsigned char)); 	//plante si on met moins
+    screenBuffer = vzalloc((150+4)*240*sizeof(unsigned char)); 	//plante si on met moins
 
     sendBuffer[0] = commandByte;
     sendBuffer[152] = paddingByte;
@@ -279,13 +280,13 @@ int thread_fn(void* v)
     for(y=0 ; y < 240 ; y++)
     {
 	gpio_set_value(SCS, 1);
-    screenBufferCompressed[y*(150+4)] = commandByte;
-	screenBufferCompressed[y*(150+4) + 1] = y; //reverseByte(y+1); //sharp display lines are indexed from 1
-	screenBufferCompressed[y*(150+4) + 152] = paddingByte;
-	screenBufferCompressed[y*(150+4) + 153] = paddingByte;
+    screenBuffer[y*(150+4)] = commandByte;
+	screenBuffer[y*(150+4) + 1] = y; //reverseByte(y+1); //sharp display lines are indexed from 1
+	screenBuffer[y*(150+4) + 152] = paddingByte;
+	screenBuffer[y*(150+4) + 153] = paddingByte;
 
-	//screenBufferCompressed is all to 0 by default (vzalloc)
-    spi_write(screen->spi, (const u8 *)(screenBufferCompressed+(y*(150+4))), 154);
+	//screenBuffer is all to 0 by default (vzalloc)
+    spi_write(screen->spi, (const u8 *)(screenBuffer+(y*(150+4))), 154);
 	gpio_set_value(SCS, 0);
     }
 
@@ -298,7 +299,7 @@ int thread_fn(void* v)
         {
             hasChanged = 0;
 
-            for(x=0 ; x<50 ; x++)
+            for(x=0 ; x<150 ; x++)
             {
                 /*
                 r = a1, b1, c1, d1, e1, f1, g1, h1
@@ -307,27 +308,16 @@ int thread_fn(void* v)
 
                 rgb = a1,a2,a3,b1,b2,b3,c1,c2,c3,d1,d2,d3,e1,e2,e3,f1,f2,f3,g1,g2,g3,h1,h2,h3
                 */
-                r = ioread8((void*)((uintptr_t)info->fix.smem_start + (x*8 + y*400)*3));
-                g = ioread8((void*)((uintptr_t)info->fix.smem_start + ((x+50)*8 + y*400)*3));
-                b = ioread8((void*)((uintptr_t)info->fix.smem_start + ((x+100)*8 + y*400)*3));
-                
-                rgbBuffer[0] = (r & 0x92) | ((g & 0x92) >> 1) | ((b & 0x92) >> 2);
-                rgbBuffer[1] = ((r & 0x49) << 2) | (g & 0x49) | ((b & 0x49) >> 1);
-                rgbBuffer[2] = ((r & 0x24) << 4) | ((g & 0x24) << 3) | (b & 0x24);
+                p = ioread8((void*)((uintptr_t)info->fix.smem_start + (x*8 + y*400)));
 
-                if(!hasChanged && (
-                    screenBufferCompressed[(3*x) + 2 + y*(150+4)] != rgbBuffer[0]
-                    || screenBufferCompressed[(3*x) + 2 + y*(150+4) + 1] != rgbBuffer[1]
-                    || screenBufferCompressed[(3*x) + 2 + y*(150+4) + 2] != rgbBuffer[2]))
+                if(!hasChanged && screenBuffer[x+2 + y*(150+4)] != p)
                 {
                     hasChanged = 1;
                 }
 
                 if (hasChanged)
                 {
-                    screenBufferCompressed[(3*x)+2 + y*(150+4)] = rgbBuffer[0];
-                    screenBufferCompressed[(3*x)+2 + y*(150+4) + 1] = rgbBuffer[1];
-                    screenBufferCompressed[(3*x)+2 + y*(150+4) + 2] = rgbBuffer[2];
+                    screenBuffer[x+2 + y*(150+4)] = p;
                 }
             }
 
@@ -335,7 +325,7 @@ int thread_fn(void* v)
             {
                 gpio_set_value(SCS, 1);
                 //la memoire allouee avec vzalloc semble trop lente...
-                memcpy(sendBuffer, screenBufferCompressed+y*(150+4), 154);
+                memcpy(sendBuffer, screenBuffer+y*(150+4), 154);
                 spi_write(screen->spi, (const u8 *)(sendBuffer), 154);
                 gpio_set_value(SCS, 0);
             }
