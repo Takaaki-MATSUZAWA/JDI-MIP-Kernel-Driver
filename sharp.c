@@ -266,15 +266,15 @@ int thread_fn(void* v)
     // three byte bufferBytes array:
     // char rgbBuffer[3] = {0,0,0};
 
-    char sendBuffer[1 + (1+150+1)*1 + 1];
+    // char sendBuffer[1 + (1+150+1)*1 + 1];
 
     clearDisplay();
 
     screenBuffer = vzalloc((150+4)*240*sizeof(unsigned char)); 	//plante si on met moins
 
-    sendBuffer[0] = commandByte;
-    sendBuffer[152] = paddingByte;
-    sendBuffer[1 + 152] = paddingByte;
+    // sendBuffer[0] = commandByte;
+    // sendBuffer[152] = paddingByte;
+    // sendBuffer[1 + 152] = paddingByte;
 
     // Init screen to black
     for(y=0 ; y < 240 ; y++)
@@ -326,7 +326,8 @@ int thread_fn(void* v)
                 gpio_set_value(SCS, 1);
                 //la memoire allouee avec vzalloc semble trop lente...
                 memcpy(sendBuffer, screenBuffer+y*(150+4), 154);
-                spi_write(screen->spi, (const u8 *)(sendBuffer), 154);
+                // spi_write(screen->spi, (const u8 *)(sendBuffer), 154);
+                spi_write(screen->spi, (const u8 *)(screenBuffer+(y*(150+4))), 154);
                 gpio_set_value(SCS, 0);
             }
 
