@@ -82,7 +82,6 @@ static struct fb_var_screeninfo vfb_default = {
     .red =      { 1, 0, 0 },
     .green =    { 0, 1, 0 },
     .blue =     { 0, 0, 1 },
-    .transp =   { 0, 0, 0 },
     .activate = FB_ACTIVATE_NOW,
     .height =   400,
     .width =    240,
