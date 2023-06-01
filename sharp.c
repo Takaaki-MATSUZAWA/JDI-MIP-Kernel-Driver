@@ -77,11 +77,11 @@ static struct fb_var_screeninfo vfb_default = {
     .yres =     240,
     .xres_virtual = 400,
     .yres_virtual = 240,
-    .bits_per_pixel = 3,
+    .bits_per_pixel = 8,
     .grayscale = 0,
-    .red =      { 0, 1, 0 },
-    .green =    { 0, 1, 0 },
-    .blue =     { 0, 1, 0 },
+    .red =      { 0, 3, 0 },
+    .green =    { 3, 3, 0 },
+    .blue =     { 6, 2, 0 },
     .activate = FB_ACTIVATE_NOW,
     .height =   400,
     .width =    240,
@@ -98,7 +98,7 @@ static struct fb_var_screeninfo vfb_default = {
 static struct fb_fix_screeninfo vfb_fix = {
     .id =       "Sharp FB",
     .type =     FB_TYPE_PACKED_PIXELS,
-    .line_length = 1200,
+    .line_length = 400,
     .xpanstep = 0,
     .ypanstep = 0,
     .ywrapstep =    0,
@@ -257,24 +257,16 @@ int thread_fn(void* v)
 {
     //BELOW, 50 becomes 150 becaues we have 3 bits (rgb) per pixel
     int x,y;
-    //char r, g, b;
-    char p;
+    char r, g, b;
+    char p[8]; // 8 x 8 bit pixels as 8 bytes
+    char c[3]; // reduced to 8 x 3 bit pixels as 3 bytes
     char hasChanged = 0;
 
     unsigned char *screenBuffer;
-    //char bufferByte = 0;
-    // three byte bufferBytes array:
-    // char rgbBuffer[3] = {0,0,0};
-
-    // char sendBuffer[1 + (1+150+1)*1 + 1];
 
     clearDisplay();
 
     screenBuffer = vzalloc((150+4)*240*sizeof(unsigned char)); 	//plante si on met moins
-
-    // sendBuffer[0] = commandByte;
-    // sendBuffer[152] = paddingByte;
-    // sendBuffer[1 + 152] = paddingByte;
 
     // Init screen to black
     for(y=0 ; y < 240 ; y++)
@@ -299,7 +291,7 @@ int thread_fn(void* v)
         {
             hasChanged = 0;
 
-            for(x=0 ; x<150 ; x++)
+            for(x=0 ; x<50 ; x++)
             {
                 /*
                 r = a1, b1, c1, d1, e1, f1, g1, h1
@@ -308,16 +300,39 @@ int thread_fn(void* v)
 
                 rgb = a1,a2,a3,b1,b2,b3,c1,c2,c3,d1,d2,d3,e1,e2,e3,f1,f2,f3,g1,g2,g3,h1,h2,h3
                 */
-                p = ioread8((void*)((uintptr_t)info->fix.smem_start + (x*8 + y*400)));
+                //p = ioread8((void*)((uintptr_t)info->fix.smem_start + (x + y*400)));
 
-                if(!hasChanged && screenBuffer[x+2 + y*(150+4)] != p)
+                // Read 8 bytes from the framebuffer
+                p = ioread8((void*)((uintptr_t)info->fix.smem_start + (x*8 + y*400)), 8);
+
+                memset(c, 0, sizeof(c));
+
+                // Iterate over each pixel in p
+                for (int i = 0; i < 8; i++) {
+                // Extract the red, green, and blue values for the current pixel
+                char r = (p[i] & 0x07) > 0 ? 1 : 0;    // Bit 0-2 for red
+                char g = ((p[i] >> 3) & 0x07) > 0 ? 1 : 0;  // Bit 3-5 for green
+                char b = ((p[i] >> 6) & 0x03) > 0 ? 1 : 0;  // Bit 6-7 for blue
+
+                // Pack the extracted bits into c
+                c[i % 3] |= (r << (i % 3));  // Pack red bits
+                c[i % 3] |= (g << (i % 3 + 3));  // Pack green bits
+                c[i % 3] |= (b << (i % 3 + 6));  // Pack blue bits
+                }
+
+                if(!hasChanged && (
+                        screenBuffer[x*3 + y*(150+4)] != c[0] ||
+                        screenBuffer[x*3 + 1 + y*(150+4)] != c[1] ||
+                        screenBuffer[x*3 + 2 + y*(150+4)] != c[2]))
                 {
                     hasChanged = 1;
                 }
 
                 if (hasChanged)
                 {
-                    screenBuffer[x+2 + y*(150+4)] = p;
+                    screenBuffer[x*3 + y*(150+4)] = c[0];
+                    screenBuffer[x*3 + 1 + y*(150+4)] = c[1];
+                    screenBuffer[x*3 + 2 + y*(150+4)] = c[2];
                 }
             }
 
