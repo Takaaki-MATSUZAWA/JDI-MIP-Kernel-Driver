@@ -303,7 +303,7 @@ int thread_fn(void* v)
                 //p = ioread8((void*)((uintptr_t)info->fix.smem_start + (x + y*400)));
 
                 // Read 8 bytes from the framebuffer
-                
+
                 memset(c, 0, sizeof(c));
 
                 // Iterate over each pixel in p
@@ -311,9 +311,9 @@ int thread_fn(void* v)
                     p = ioread8((void*)((uintptr_t)info->fix.smem_start + (x*8 + i + y*400)));
 
                     // Extract the red, green, and blue values for the current pixel
-                    r = (p[i] & 0x07) > 0 ? 1 : 0;    // Bit 0-2 for red
-                    g = ((p[i] >> 3) & 0x07) > 0 ? 1 : 0;  // Bit 3-5 for green
-                    b = ((p[i] >> 6) & 0x03) > 0 ? 1 : 0;  // Bit 6-7 for blue
+                    r = (p & 0x07) > 0 ? 1 : 0;    // Bit 0-2 for red
+                    g = ((p >> 3) & 0x07) > 0 ? 1 : 0;  // Bit 3-5 for green
+                    b = ((p >> 6) & 0x03) > 0 ? 1 : 0;  // Bit 6-7 for blue
 
                     // Pack the extracted bits into c
                     c[i % 3] |= (r << (i % 3));  // Pack red bits
