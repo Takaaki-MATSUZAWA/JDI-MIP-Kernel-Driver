@@ -293,20 +293,13 @@ int thread_fn(void* v)
 
             for(x=0 ; x<50 ; x++)
             {
-                /*
-                r = a1, b1, c1, d1, e1, f1, g1, h1
-                g = a2, b2, c2, d2, e2, f2, g2, h2
-                b = a3, b3, c3, d3, e3, f3, g3, h3
+                // We work on 8 pixels at a time... 50 * 8 => 400 pixels
 
-                rgb = a1,a2,a3,b1,b2,b3,c1,c2,c3,d1,d2,d3,e1,e2,e3,f1,f2,f3,g1,g2,g3,h1,h2,h3
-                */
-                //p = ioread8((void*)((uintptr_t)info->fix.smem_start + (x + y*400)));
-
-                // Read 8 bytes from the framebuffer
+                // Each 8 pixels compress indo 3 byte c[] and are copied to the screenBuffer.
 
                 memset(c, 0, sizeof(c));
 
-                // Iterate over each pixel in p
+                // Iterate over 8 pixels
                 for (int i = 0; i < 8; i++) {
                     p = ioread8((void*)((uintptr_t)info->fix.smem_start + (x*8 + i + y*400)));
 
@@ -321,6 +314,7 @@ int thread_fn(void* v)
                     c[i % 3] |= (b << (i % 3 + 6));  // Pack blue bits
                 }
 
+                // compare to screen buffer
                 if(!hasChanged && (
                         screenBuffer[2 + x*3 + y*(150+4)] != c[0] ||
                         screenBuffer[2 + x*3 + 1 + y*(150+4)] != c[1] ||
@@ -329,6 +323,7 @@ int thread_fn(void* v)
                     hasChanged = 1;
                 }
 
+                // update screen buffer
                 if (hasChanged)
                 {
                     screenBuffer[2 + x*3 + y*(150+4)] = c[0];
@@ -340,13 +335,9 @@ int thread_fn(void* v)
             if (hasChanged)
             {
                 gpio_set_value(SCS, 1);
-                //la memoire allouee avec vzalloc semble trop lente...
-                // memcpy(sendBuffer, screenBuffer+y*(150+4), 154);
-                // spi_write(screen->spi, (const u8 *)(sendBuffer), 154);
                 spi_write(screen->spi, (const u8 *)(screenBuffer+(y*(150+4))), 154);
                 gpio_set_value(SCS, 0);
             }
-
         }
     }
 
