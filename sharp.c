@@ -304,21 +304,22 @@ int thread_fn(void* v)
                     p = ioread8((void*)((uintptr_t)info->fix.smem_start + (x*8 + i + y*400)));
 
                     // Extract the red, green, and blue values for the current pixel
-                    r = (p & 0b00000111) > 0 ? 1 : 0;  // Bit 0-2 for red
-                    g = (p & 0b00111000) > 0 ? 1 : 0;  // Bit 3-5 for green
-                    b = (p & 0b11000000) > 0 ? 1 : 0;  // Bit 6-7 for blue
-
-                    // Pack the extracted bits into c
-                    c[i % 3] |= (r << (i % 3));  // Pack red bits
-                    c[i % 3] |= (g << (i % 3 + 1));  // Pack green bits
-                    c[i % 3] |= (b << (i % 3 + 2));  // Pack blue bits
-
-                    // Above packing is broken.  
                     // r = (p & 0b00000111) > 0 ? 1 : 0;  // Bit 0-2 for red
-                    // g = (p & 0b00111000) > 0 ? 2 : 0;  // Bit 3-5 for green
-                    // b = (p & 0b11000000) > 0 ? 4 : 0;  // Bit 6-7 for blue
+                    // g = (p & 0b00111000) > 0 ? 1 : 0;  // Bit 3-5 for green
+                    // b = (p & 0b11000000) > 0 ? 1 : 0;  // Bit 6-7 for blue
 
-                    // p = r + g + b;
+                    // // Pack the extracted bits into c
+                    // c[i % 3] |= (r << (i % 3));  // Pack red bits
+                    // c[i % 3] |= (g << (i % 3 + 1));  // Pack green bits
+                    // c[i % 3] |= (b << (i % 3 + 2));  // Pack blue bits
+
+                    // Above steps are broken.  Trying again.
+                    r = (p & 0b00000111) > 0 ? 1 : 0;  // Bit 0-2 for red
+                    g = (p & 0b00111000) > 0 ? 2 : 0;  // Bit 3-5 for green
+                    b = (p & 0b11000000) > 0 ? 4 : 0;  // Bit 6-7 for blue
+
+                    p = r + g + b;
+                    c[i % 3] |= p << ((i % 3) * 3);
                 }
 
                 // compare to screen buffer
