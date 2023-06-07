@@ -260,7 +260,7 @@ int thread_fn(void* v)
     char r, g, b;
     char p;
     char c[3]; // reduced to 8 x 3 bit pixels as 3 bytes
-    int shift;
+    // int shift;
     // uint24_t c;
     char hasChanged = 0;
 
