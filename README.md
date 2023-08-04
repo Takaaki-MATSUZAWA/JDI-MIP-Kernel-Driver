@@ -29,6 +29,8 @@ EXTMODE | +3.3V
 VSSA    | +3.3V     
 VSS     | +3.3V
 
+If you want to change the connection pins, change jdi_mip.dtsi.
+
 ## Compile/Install the driver
 Verify that you have the linux kernel headers for your platform. 
 ```
@@ -85,8 +87,9 @@ sudo chvt 1
 ```
 
 If you want to activate it automatically at boot time, use systemd or similar.
+
 Create ``/etc/systemd/system/chvt1.service``
-````
+```
 [Unit].
 Description=Switch to /dev/tty1
 
