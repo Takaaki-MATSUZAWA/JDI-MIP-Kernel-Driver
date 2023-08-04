@@ -88,7 +88,8 @@ sudo chvt 1
 
 If you want to activate it automatically at boot time, use systemd or similar.
 
-Create ``/etc/systemd/system/chvt1.service``
+Create `/etc/systemd/system/chvt1.service`
+
 ```
 [Unit].
 Description=Switch to /dev/tty1
