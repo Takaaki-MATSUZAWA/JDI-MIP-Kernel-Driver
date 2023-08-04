@@ -1,0 +1,1 @@
+cmd_/home/rock/JDI_disp/JDI-MIP-Kernel-Driver/jdi_mip.ko := ld -r  -EL  -maarch64elf  --build-id=sha1  -T scripts/module.lds -o /home/rock/JDI_disp/JDI-MIP-Kernel-Driver/jdi_mip.ko /home/rock/JDI_disp/JDI-MIP-Kernel-Driver/jdi_mip.o /home/rock/JDI_disp/JDI-MIP-Kernel-Driver/jdi_mip.mod.o;  true

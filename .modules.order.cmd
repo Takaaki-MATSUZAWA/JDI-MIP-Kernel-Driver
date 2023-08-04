@@ -1,0 +1,1 @@
+cmd_/home/rock/JDI_disp/JDI-MIP-Kernel-Driver/modules.order := {   echo /home/rock/JDI_disp/JDI-MIP-Kernel-Driver/jdi_mip.ko; :; } | awk '!x[$$0]++' - > /home/rock/JDI_disp/JDI-MIP-Kernel-Driver/modules.order

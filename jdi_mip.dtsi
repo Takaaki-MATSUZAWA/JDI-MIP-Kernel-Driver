@@ -1,0 +1,61 @@
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/gpio/meson-g12a-gpio.h>
+
+/ {
+	metadata {
+			title = "Enable jdi_mip LCD panel on SPI-B";
+			compatible = "radxa,zero", "radxa,zero2";
+			category = "misc";
+			exclusive = "spicc1", "GPIOH_4", "GPIOH_5", "GPIOH_7", "GPIOH_6", "GPIOX_10", "GPIOX_8";
+			description = "Enable jdi_mip LCD Panel on SPI-B";
+	};
+
+	fragment@0 {
+		target = <&spicc1>;
+		__overlay__ {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			pinctrl-0 = <&spicc1_pins>;
+			pinctrl-names = "default";
+
+			cs-gpios = <&gpio GPIOH_6 GPIO_ACTIVE_HIGH>;
+
+			status = "okay";
+
+			jdi_mip: jdi_mip@0 {
+				compatible = "jdi_mip", "jdi_mip,LS027B7DH01";
+				reg = <0>;
+
+				spi-cs-high = <1>;
+				spi-max-frequency = <2000000>;
+
+				buswidth = <8>;
+
+				pinctrl-names = "default";
+				pinctrl-0 = <&jdi_mip_pins>;
+
+				vcom-gpios = <&gpio GPIOX_10 GPIO_ACTIVE_HIGH>;
+				disp-gpios = <&gpio GPIOX_8 GPIO_ACTIVE_HIGH>;
+
+				debug = <1>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target = <&periphs_pinctrl>;
+		__overlay__ {
+			jdi_mip_pins: jdi_mip-pins@0 {
+				mux {
+					groups = "GPIOX_10", "GPIOX_8";
+					function = "gpio_periphs";
+					drive-strength-microamp = <4000>;
+				};
+			};
+		};
+	};
+};

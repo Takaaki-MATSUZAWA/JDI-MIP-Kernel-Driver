@@ -23,7 +23,7 @@
 #define VIDEOMEMSIZE    (1*1024*1024)   /* 1 MB */
 
 /*  Modifying to work with JDI LPM027M128C 8 color display 
-    It is pin compatible with the sharp display. 
+    It is pin compatible with the jdi_mip display. 
     Referencing JDI_MIP_Display.cpp for hints on
     what needs to be changed.*/
 
@@ -37,30 +37,38 @@ char paddingByte = 0b00000000;
 // char SCS        = 8;
 // char VCOM       = 23;
 char DISP       = 24;
-char SCS        = 23;
-char VCOM       = 25;
+char SCS        = 73;
+char VCOM       = 11;
+
+struct gpio_desc *gpio_disp;
 
 int lcdWidth = LCDWIDTH;
 int lcdHeight = 240;
 int fpsCounter;
 
+int vcomReqState = 0;
+
 static int seuil = 4; // Indispensable pour fbcon
 module_param(seuil, int, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP );
 
-char vcomState;
+char vcomState = 0;
 
 // unsigned char lineBuffer[3*LCDWIDTH/8];
 
-struct sharp {
+struct jdi_mip {
     struct spi_device	*spi;
 	int			        id;
-    char			    name[sizeof("sharp-3")];
+    char			    name[sizeof("jdi_mip-3")];
     struct mutex		mutex;
 	struct work_struct	work;
 	spinlock_t		    lock; 
+
+    struct gpio_desc *gpio_scs;
+    struct gpio_desc *gpio_vcom;
+    struct gpio_desc *gpio_disp;
 };
 
-struct sharp   *screen;
+struct jdi_mip   *screen;
 struct fb_info *info;
 // struct vfb_data *vdata;
 
@@ -96,7 +104,7 @@ static struct fb_var_screeninfo vfb_default = {
     };
 
 static struct fb_fix_screeninfo vfb_fix = {
-    .id =       "Sharp FB",
+    .id =       "jdi_mip FB",
     .type =     FB_TYPE_PACKED_PIXELS,
     .line_length = 400,
     .xpanstep = 0,
@@ -146,20 +154,28 @@ static int vfb_mmap(struct fb_info *info, struct vm_area_struct *vma)
     unsigned long size = vma->vm_end - vma->vm_start;
     unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
     unsigned long page, pos;
+    
     printk(KERN_CRIT "start %ld size %ld offset %ld", start, size, offset);
 
-    if (vma->vm_pgoff > (~0UL >> PAGE_SHIFT))
+    if (vma->vm_pgoff > (~0UL >> PAGE_SHIFT)){
+        printk(KERN_CRIT "-EINVAL 1;");
         return -EINVAL;
-    if (size > info->fix.smem_len)
+    }
+    if (size > info->fix.smem_len){
+        printk(KERN_CRIT "-EINVAL 2;");
         return -EINVAL;
-    if (offset > info->fix.smem_len - size)
+    }
+    if (offset > info->fix.smem_len - size){
+        printk(KERN_CRIT "-EINVAL 3;");
         return -EINVAL;
+    }
 
     pos = (unsigned long)info->fix.smem_start + offset;
 
     while (size > 0) {
         page = vmalloc_to_pfn((void *)pos);
         if (remap_pfn_range(vma, start, page, PAGE_SIZE, PAGE_SHARED)) {
+            printk(KERN_CRIT "-EINVAL 4;");
             return -EAGAIN;
         }
         start += PAGE_SIZE;
@@ -169,7 +185,6 @@ static int vfb_mmap(struct fb_info *info, struct vm_area_struct *vma)
         else
             size = 0;
     }
-
     return 0;
 }
 
@@ -217,16 +232,17 @@ static void rvfree(void *mem, unsigned long size)
 
 void clearDisplay(void) {
     char buffer[2] = {clearByte, paddingByte};
-    gpio_set_value(SCS, 1);
+    gpiod_set_value(screen->gpio_scs, 1);
 
     spi_write(screen->spi, (const u8 *)buffer, 2);
 
-    gpio_set_value(SCS, 0);
+    gpiod_set_value(screen->gpio_scs, 0);
 }
 
 void colorCorners(unsigned char *screenBuffer) {
-    for (int y = 0; y < 240; y++) {
-        for (int x = 0; x < 200; x++) {
+    int x,y;
+    for (y = 0; y < 240; y++) {
+        for (x = 0; x < 200; x++) {
             if (x < 10 && y < 20) {
                 screenBuffer[y * 204 + x + 2] = 238; // white 11101110 => 238
             } else if (x > 190 && y < 20) {
@@ -238,16 +254,17 @@ void colorCorners(unsigned char *screenBuffer) {
             }
         }
         if (y < 20 || y > 220) {
-            gpio_set_value(SCS, 1);
+            gpiod_set_value(screen->gpio_scs, 1);
             spi_write(screen->spi, (const u8 *)(screenBuffer+(y*204)), 204);
-            gpio_set_value(SCS, 0);
+            gpiod_set_value(screen->gpio_scs, 0);
         }
     }
 }
 
 void colorBar(unsigned char *screenBuffer) {
-    for(int y = 0; y < 40; y++) {
-        for(int x = 0; x < 160; x++) {
+    int x,y;
+    for(y = 0; y < 40; y++) {
+        for(x = 0; x < 160; x++) {
             if (x < 20) {
                 screenBuffer[y * 204 + x + 2] = 0b00000000; //black
             } else if (x < 40) {
@@ -266,9 +283,9 @@ void colorBar(unsigned char *screenBuffer) {
                 screenBuffer[y * 204 + x + 2] = 0b11101110; // red + green + blue => white
             } 
         }
-        gpio_set_value(SCS, 1);
+        gpiod_set_value(screen->gpio_scs, 1);
         spi_write(screen->spi, (const u8 *)(screenBuffer+(y*204)), 204);
-        gpio_set_value(SCS, 0);
+        gpiod_set_value(screen->gpio_scs, 0);
     }
 }
 
@@ -281,11 +298,23 @@ void colorBar(unsigned char *screenBuffer) {
 
 int vcomToggleFunction(void* v) 
 {
+    //int vomCnt = 0;
     while (!kthread_should_stop()) 
     {
         msleep(50);
+        //msleep(1000);
+        #if 0
+        if(vcomReqState < 0){
+            vcomReqState = gpio_request(VCOM, "VCOM");
+            gpio_export(VCOM, true);
+            gpio_direction_output(VCOM, 0);
+        }
         vcomState = vcomState ? 0:1;
-        gpio_set_value(VCOM, vcomState);
+        gpiod_set_value(VCOM, vcomState);
+        printk(KERN_CRIT "vcomToggleFunction : %d\n",vcomReqState++);
+        #endif
+        vcomState = vcomState ? 0:1;
+        gpiod_set_value(screen->gpio_vcom, vcomState);
     }
     return 0;
 }
@@ -295,7 +324,7 @@ int fpsThreadFunction(void* v)
     while (!kthread_should_stop()) 
     {
         msleep(5000);
-    	printk(KERN_DEBUG "FPS sharp : %d\n", fpsCounter);
+    	printk(KERN_DEBUG "FPS jdi_mip : %d\n", fpsCounter);
     	fpsCounter = 0;
     }
     return 0;
@@ -311,6 +340,7 @@ int thread_fn(void* v)
     unsigned char *screenBuffer;
 
     clearDisplay();
+    gpiod_set_value(screen->gpio_vcom, 0);
 
     // Below, 204 because we use this structure per line:
     // 1 command byte + 1 addr byte + 200 pixel bytes + 2 padding bytes
@@ -319,15 +349,15 @@ int thread_fn(void* v)
     // Init screen to black
     for(y=0 ; y < 240 ; y++)
     {
-	gpio_set_value(SCS, 1);
+	gpiod_set_value(screen->gpio_scs, 1);
     screenBuffer[y*204] = commandByte;
-	screenBuffer[y*204 + 1] = y; //reverseByte(y+1); //sharp display lines are indexed from 1
+	screenBuffer[y*204 + 1] = y; //reverseByte(y+1); //jdi_mip display lines are indexed from 1
 	screenBuffer[y*204 + 202] = paddingByte;
 	screenBuffer[y*204 + 203] = paddingByte;
 
 	//screenBuffer is all to 0 by default (vzalloc)
     spi_write(screen->spi, (const u8 *)(screenBuffer+(y*204)), 204);
-	gpio_set_value(SCS, 0);
+	gpiod_set_value(screen->gpio_scs, 0);
     }
 
 
@@ -377,19 +407,20 @@ int thread_fn(void* v)
 
             if (hasChanged)
             {
-                gpio_set_value(SCS, 1);
+                //printk(KERN_CRIT "jdi_mip hasChanged");
+                gpiod_set_value(screen->gpio_scs, 1);
                 spi_write(screen->spi, (const u8 *)(screenBuffer+(y*204)), 204);
-                gpio_set_value(SCS, 0);
+                gpiod_set_value(screen->gpio_scs, 0);
             }
         }
         //colorCorners(screenBuffer);
         //colorBar(screenBuffer);
     }
-
+    printk(KERN_CRIT "kthread_should_stop;");
     return 0;
 }
 
-static int sharp_probe(struct spi_device *spi)
+static int jdi_mip_probe(struct spi_device *spi)
 {
     char our_thread[] = "updateScreen";
     char thread_vcom[] = "vcom";
@@ -407,6 +438,21 @@ static int sharp_probe(struct spi_device *spi)
 
     spi_set_drvdata(spi, screen);
 
+    // Set the GPIO descriptors
+    screen->gpio_scs = devm_gpiod_get_optional(&screen->spi->dev, "scs", GPIOD_OUT_LOW);
+	if (IS_ERR(screen->gpio_scs))
+		return dev_err_probe(&screen->spi->dev, PTR_ERR(screen->gpio_scs), "Failed to get GPIO 'scs'\n");
+
+    screen->gpio_disp = devm_gpiod_get(&screen->spi->dev, "disp", GPIOD_OUT_HIGH);
+    if (IS_ERR(screen->gpio_disp))
+		return dev_err_probe(&screen->spi->dev, PTR_ERR(screen->gpio_disp), "Failed to get GPIO 'disp'\n");
+
+    screen->gpio_vcom = devm_gpiod_get(&screen->spi->dev, "vcom", GPIOD_OUT_LOW);
+    if (IS_ERR(screen->gpio_vcom))
+		return dev_err_probe(&screen->spi->dev, PTR_ERR(screen->gpio_vcom), "Failed to get GPIO 'vcom'\n");
+
+    msleep(5);
+
     thread1 = kthread_create(thread_fn,NULL,our_thread);
     if((thread1))
     {
@@ -416,8 +462,9 @@ static int sharp_probe(struct spi_device *spi)
     fpsThread = kthread_create(fpsThreadFunction,NULL,thread_fps);
     if((fpsThread))
     {
-        wake_up_process(fpsThread);
+        //wake_up_process(fpsThread);
     }
+
 
     vcomToggleThread = kthread_create(vcomToggleFunction,NULL,thread_vcom);
     if((vcomToggleThread))
@@ -425,14 +472,30 @@ static int sharp_probe(struct spi_device *spi)
         wake_up_process(vcomToggleThread);
     }
 
-    gpio_request(SCS, "SCS");
-    gpio_direction_output(SCS, 0);
+    //gpio_request(SCS, "SCS");
+    //gpio_direction_output(SCS, 1);
+    #if 0
 
-    gpio_request(VCOM, "VCOM");
-    gpio_direction_output(VCOM, 0);
+    screen->gpio_disp = devm_gpiod_get(&screen->spi->dev, "disp", GPIOD_OUT_HIGH);
+    if (IS_ERR(screen->gpio_disp))
+		return dev_err_probe(&screen->spi->dev, PTR_ERR(screen->gpio_disp), "Failed to get GPIO 'disp'\n");
 
-    gpio_request(DISP, "DISP");
-    gpio_direction_output(DISP, 1);
+    screen->gpio_vcom = devm_gpiod_get(&screen->spi->dev, "vcom", GPIOD_OUT_LOW);
+    if (IS_ERR(screen->gpio_vcom))
+		return dev_err_probe(&screen->spi->dev, PTR_ERR(screen->gpio_vcom), "Failed to get GPIO 'vcom'\n");
+
+
+    //vcomReqState = gpio_request(VCOM, "VCOM");
+    //printk(KERN_CRIT "VCOM retuest succsess \n");
+    //gpio_export(VCOM, true);
+    //gpio_direction_output(VCOM, 0);
+    screen->gpio_disp = devm_gpiod_get_optional(&spi->dev, "disp", GPIOD_OUT_LOW);
+     if (IS_ERR(screen->gpio_disp))
+		return dev_err_probe(&spi->dev, PTR_ERR(screen->gpio_disp), "Failed to get GPIO 'disp'\n");
+#endif
+
+    //gpio_request(DISP, "DISP");
+    //gpio_direction_output(DISP, 1);
 
     // SCREEN PART
     retval = -ENOMEM;
@@ -476,7 +539,7 @@ err:
     return 0;
 }
 
-static void sharp_remove(struct spi_device *spi)
+static int jdi_mip_remove(struct spi_device *spi)
 {
         if (info) {
                 unregister_framebuffer(info);
@@ -487,21 +550,21 @@ static void sharp_remove(struct spi_device *spi)
 	kthread_stop(fpsThread);
     kthread_stop(vcomToggleThread);
 	printk(KERN_CRIT "out of screen module");
-	//return 0;
+	return 0;
 }
 
-static struct spi_driver sharp_driver = {
-    .probe          = sharp_probe,
-    .remove         = sharp_remove,
+static struct spi_driver jdi_mip_driver = {
+    .probe          = jdi_mip_probe,
+    .remove         = jdi_mip_remove,
 	.driver = {
-		.name	= "sharp",
+		.name	= "jdi_mip",
 		.owner	= THIS_MODULE,
 	},
 };
 
-module_spi_driver(sharp_driver);
+module_spi_driver(jdi_mip_driver);
 
 MODULE_AUTHOR("Ael Gain <ael.gain@free.fr>");
-MODULE_DESCRIPTION("Sharp memory lcd driver");
+MODULE_DESCRIPTION("jdi_mip memory lcd driver");
 MODULE_LICENSE("GPL v2");
-MODULE_ALIAS("spi:sharp");
+MODULE_ALIAS("spi:jdi_mip");
