@@ -4,3 +4,6 @@
 *.dts
 *.dtbo
 *.cmd
+*.mod
+*.mod.c
+Module.symvers
