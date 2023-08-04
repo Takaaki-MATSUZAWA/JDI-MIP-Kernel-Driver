@@ -3,3 +3,4 @@
 *.ko
 *.dts
 *.dtbo
+*.cmd

@@ -1,1 +1,0 @@
-cmd_/home/rock/JDI_disp/JDI-MIP-Kernel-Driver/Module.symvers := sed 's/ko$$/o/' /home/rock/JDI_disp/JDI-MIP-Kernel-Driver/modules.order | scripts/mod/modpost     -o /home/rock/JDI_disp/JDI-MIP-Kernel-Driver/Module.symvers -e -i Module.symvers   -T -
