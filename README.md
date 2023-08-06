@@ -34,7 +34,8 @@ If you want to change the connection pins, change jdi_mip.dtsi.
 ## Compile/Install the driver
 Verify that you have the linux kernel headers for your platform. 
 ```
-sudo apt-get install linux-headers-$(uname -r)
+sudo apt install make gcc build-essential device-tree-compiler
+sudo apt install linux-headers-$(uname -r)
 ```
 
 To compile the driver, run:
@@ -91,10 +92,11 @@ If you want to activate it automatically at boot time, use systemd or similar.
 Create `/etc/systemd/system/chvt1.service`
 
 ```
-[Unit].
+[Unit]
 Description=Switch to /dev/tty1
 
-[Service] ExecStart=/bin/bash
+[Service]
+ExecStart=/bin/bash
 ExecStart=/bin/bash -c "sleep 5 && chvt 1"
 Type=oneshot
 
@@ -105,6 +107,7 @@ WantedBy=multi-user.target
 Here, the command on the `ExecStart` line will wait for 5 seconds before executing `chvt 1`.
 After saving this file, make systemd aware of the new service with the following command:
 ```
+sudo chmod +x /etc/systemd/system/chvt1.service
 sudo systemctl daemon-reload
 ```
 
@@ -112,6 +115,14 @@ Then, activate this new service with the following command so that it will run a
 ```
 sudo systemctl enable chvt1
 ```
+
+If you want to log in automatically on tty1, use the `sudo systemctl edit getty@tty1` command and write the following information.
+```
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin rock %I 38400 linux
+```
+This will automatically log you in as the default user "rock". If you want to log in as a different user, please change the user name.
 
 Finally, reboot the system to verify that the configuration works correctly:
 ```
