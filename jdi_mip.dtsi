@@ -38,8 +38,8 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <&jdi_mip_pins>;
 
-				vcom-gpios = <&gpio GPIOX_10 GPIO_ACTIVE_HIGH>;
-				disp-gpios = <&gpio GPIOX_8 GPIO_ACTIVE_HIGH>;
+				vcom-gpios = <&gpio_ao GPIOAO_4 GPIO_ACTIVE_HIGH>;
+				disp-gpios = <&gpio_ao GPIOAO_11 GPIO_ACTIVE_HIGH>;
 
 				debug = <1>;
 			};
@@ -47,12 +47,12 @@
 	};
 
 	fragment@1 {
-		target = <&periphs_pinctrl>;
+		target = <&ao_pinctrl>;
 		__overlay__ {
 			jdi_mip_pins: jdi_mip-pins@0 {
 				mux {
-					groups = "GPIOX_10", "GPIOX_8";
-					function = "gpio_periphs";
+					groups = "GPIOAO_4", "GPIOAO_11";
+					function = "gpio_aobus";
 					drive-strength-microamp = <4000>;
 				};
 			};
